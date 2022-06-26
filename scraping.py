@@ -1,62 +1,97 @@
 #WebScraping dependencies
 from splinter import Browser
 from bs4 import BeautifulSoup as soup
-from webdriver_manager.chrome import ChromeDriverManager
 import pandas as pd
+import datetime as dt
+from webdriver_manager.chrome import ChromeDriverManager
 
-#Set up splinter
-executable_path = {'executable_path': ChromeDriverManager().install()}
-browser = Browser('chrome', **executable_path, headless=False)
+def scrape_all():
+    #Initiate headless driver for deployment
+    executable_path = {'executable_path': ChromeDriverManager().install()}
+    browser = Browser('chrome', **executable_path, headless=True)
 
-#Visiting NASA MARS Website
-url = 'https://redplanetscience.com/'
-browser.visit(url)
+    news_title, news_paragraph = mars_news(browser)
 
-# Delay for loading the page
-browser.is_element_not_present_by_css('div.list_text', wait_time=1)
+    # Run all scraping funciotn and store resultes in dectionary:
+    data = {
+        "news_title": news_title,
+        "news_paragraph": news_paragraph,
+        "featured_image": featured_image(browser),
+        "facts": mars_facts(),
+        "last_modified": dt.datetime.now()
+    }
+    
+    #Stop webdriver and return data
+    browser.quit()
+    return data
 
-#Setting up the parser
-html = browser.html
-news_soup = soup(html, 'html.parser')
+### FEATURED NEWS
 
-slide_elem = news_soup.select_one('div.list_text')
+def mars_news(browser):
+    #Visiting NASA MARS Website
+    url = 'https://redplanetscience.com/'
+    browser.visit(url)
 
-# Finding the data
-news_title = slide_elem.find('div', class_='content_title').get_text()
-news_title
+    # Delay for loading the page
+    browser.is_element_not_present_by_css('div.list_text', wait_time=1)
 
-# Getting the first news only
-news_p = slide_elem.find('div', class_='article_teaser_body').get_text()
-news_p
+    #Setting up the parser, converting browser html to a soup objetct
+    html = browser.html
+    news_soup = soup(html, 'html.parser')
 
-### Featured Images
-# Visit URL
-url = 'https://spaceimages-mars.com'
-browser.visit(url)
+    try:
+        slide_elem = news_soup.select_one('div.list_text')
+        # Finding the data with the first <a> tag and save it as 'news_title'
+        news_title = slide_elem.find('div', class_='content_title').get_text()
+        # Getting the first new paragraph text
+        news_p = slide_elem.find('div', class_='article_teaser_body').get_text()
+    
+    except AttributeError:
+        return None, None
 
-# Find and click the FULL IMAGE button
-full_image_elem = browser.find_by_tag('button')[1]
-full_image_elem.click()
+    return news_title, news_p
 
-# Parse the resulting html with soup
-html = browser.html
-img_soup = soup(html, 'html.parser')
+### FEATURED IMAGES
 
-#Finding the relative image url
+def featured_image(browser):
+    url = 'https://spaceimages-mars.com'
+    browser.visit(url)
 
-img_url_rel = img_soup.find('img', class_='fancybox-image').get('src')
-img_url_rel
+    # Find and click the FULL IMAGE button
+    full_image_elem = browser.find_by_tag('button')[1]
+    full_image_elem.click()
 
-# Use the base URL to create an absolute URL
-img_url = f'https://spaceimages-mars.com/{img_url_rel}'
-img_url
+    # Parse the resulting html with soup
+    html = browser.html
+    img_soup = soup(html, 'html.parser')
 
-### Mars Facts
-mars_df = pd.read_html('https://galaxyfacts-mars.com')[0]
-mars_df.columns = ['description','Mars', 'Earth']
-mars_df.set_index('description', inplace=True)
+    try:
+        #Finding the relative image url
+        img_url_rel = img_soup.find('img', class_='fancybox-image').get('src')
+        
 
-mars_df.to_html()
+    except AttributeError:
+        return None,None
 
-browser.quit()
+    # Use the base URL to create an absolute URL
+    img_url = f'https://spaceimages-mars.com/{img_url_rel}'
 
+    return img_url
+
+### MARS FACTS
+def mars_facts():
+    try:
+        mars_df = pd.read_html('https://galaxyfacts-mars.com')[0]
+    except BaseException:
+        return None
+
+    #Formatting the DF
+    mars_df.columns = ['description','Mars', 'Earth']
+    mars_df.set_index('description', inplace=True)
+
+    # COnvert the df into HTML format, add bootsctrap
+    return mars_df.to_html(classes="table table-striped")
+
+if __name__ == "__main__":
+    # If running as script, print scraped data
+    print(scrape_all())
