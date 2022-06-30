@@ -90,9 +90,9 @@ def mars_facts():
     #Formatting the DF
     mars_df.columns = ['description','Mars', 'Earth']
     mars_df.set_index('description', inplace=True)
-
+    mars_table = mars_df.to_html(classes=["table-striped table-hover table-dark"] )
     # COnvert the df into HTML format, add bootsctrap
-    return mars_df.to_html(classes="table table-striped")
+    return mars_table
 
 ### MARS HEMISPHERES
 def mars_hemispheres(browser):
